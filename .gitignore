@@ -1,0 +1,4 @@
+.env
+*.postman_collection.json
+*.db
+murika.db
