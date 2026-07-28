@@ -22,6 +22,7 @@ func SetupRouter() *gin.Engine {
 	}))
 
 	// ─── Public routes (tanpa autentikasi) ───────────────────────────────────
+	r.GET("/app/status", controllers.GetAppStatus)
 	r.POST("/auth/login", controllers.Login)
 
 	// ─── Protected routes (wajib JWT Bearer Token) ───────────────────────────
@@ -36,6 +37,21 @@ func SetupRouter() *gin.Engine {
 		auth.GET("/dashboard/salary", controllers.GetSalaryDashboard)
 		auth.POST("/salary/generate", controllers.GenerateSalary)
 		auth.GET("/dashboard/pembayaran/bulanan", controllers.GetMonthlyPayments)
+		auth.POST("/dashboard/pembayaran/verifikasi/:id", controllers.VerifyPayment)
+		auth.GET("/dashboard/pembayaran/layanan", controllers.GetServicePayments)
+		auth.POST("/dashboard/pembayaran/layanan/verifikasi/:id", controllers.VerifyServicePayment)
+
+		// ─── Siswa ────────────────────────────────────────────────────────────
+		auth.GET("/students", controllers.GetStudents)
+		auth.GET("/students/:id", controllers.GetStudentByID)
+
+		// ─── Master Data ──────────────────────────────────────────────────────
+		auth.GET("/units", controllers.GetUnits)
+		auth.GET("/programs", controllers.GetPrograms)
+
+		// ─── Guru ─────────────────────────────────────────────────────────────
+		auth.GET("/teachers", controllers.GetTeachers)
+		auth.GET("/teachers/:id", controllers.GetTeacherByID)
 	}
 
 	return r

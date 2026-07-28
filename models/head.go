@@ -13,11 +13,20 @@ type Head struct {
 	Old      int    `json:"old"`
 	Number   string `json:"number"`
 	Global   string `json:"global"`
-	Units    *Unit    `gorm:"foreignKey:Unit" json:"units,omitempty"`
-	Prices   *Price   `gorm:"foreignKey:Price" json:"prices,omitempty"`
-	Product  *Price   `gorm:"foreignKey:Price" json:"product,omitempty"`
+
+	Units    *Unit    `gorm:"foreignKey:Unit"     json:"units,omitempty"`
+	Prices   *Price   `gorm:"foreignKey:Price"    json:"prices,omitempty"`
+	Product  *Price   `gorm:"foreignKey:Price"    json:"product,omitempty"`
 	Murid    *Student `gorm:"foreignKey:Students" json:"murid,omitempty"`
-	Programs *Program `gorm:"foreignKey:Program" json:"programs,omitempty"`
+	Programs *Program `gorm:"foreignKey:Program"  json:"programs,omitempty"`
+	Class    *Kelas   `gorm:"foreignKey:Kelas"    json:"class,omitempty"`
+
+	// Relasi ke Level (banyak per head)
+	Levels      []Level `gorm:"foreignKey:Head" json:"levels,omitempty"`
+	LatestLevel *Level  `gorm:"-"               json:"latest_level,omitempty"`
+
+	// Relasi ke Paid (tagihan bulanan)
+	Bills []Paid `gorm:"foreignKey:Head" json:"bills,omitempty"`
 }
 
 func (Head) TableName() string {
