@@ -11,6 +11,8 @@ type StudentPresent struct {
 	Materi          string         `json:"materi"`
 	Keterangan      string         `json:"keterangan"`
 	HeadID          uint           `json:"head_id"`
+	Meet    		 int		   `json:"meet"`
+	Present 		 int		   `json:"present"`
 	ProgramID       uint           `json:"program_id"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`

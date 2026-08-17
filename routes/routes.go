@@ -43,6 +43,7 @@ func SetupRouter() *gin.Engine {
 
 		// ─── Siswa ────────────────────────────────────────────────────────────
 		auth.GET("/students", controllers.GetStudents)
+		auth.GET("/students/export", controllers.GetStudentsExport)
 		auth.GET("/students/:id", controllers.GetStudentByID)
 
 		// ─── Master Data ──────────────────────────────────────────────────────

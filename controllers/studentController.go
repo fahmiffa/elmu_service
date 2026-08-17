@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"service/config"
 	"service/models"
@@ -42,10 +43,12 @@ type StudentListResponse struct {
 	Rank                string `json:"rank"`
 	PendidikanNonFormal string `json:"pendidikan_non_formal"`
 	Prestasi            string `json:"prestasi"`
+	CreatedAt time.Time `json:"created_at"`
 
 	UserID  uint   `json:"user_id"`
 	Program string `json:"program"`
 	Unit    string `json:"unit"`
+	Induk   string `json:"induk"`
 	Done    int    `json:"done"`
 	Status  string `json:"status"`
 }
@@ -81,12 +84,13 @@ type StudentKelasResponse struct {
 }
 
 type StudentLevelResponse struct {
-	ID    uint `json:"id"`
-	Level int  `json:"level"`
+	ID    uint 	  `json:"id"`
+	Level string  `json:"level"`
 }
 
 type StudentRegResponse struct {
 	ID      uint                    `json:"id"`
+	Induk   string                  `json:"induk"`
 	Done    int                     `json:"done"`
 	Status  string                  `json:"status"`
 	Program *StudentProgramResponse `json:"program,omitempty"`
@@ -124,6 +128,7 @@ type StudentDetailResponse struct {
 	PendidikanNonFormal string `json:"pendidikan_non_formal"`
 	Prestasi            string `json:"prestasi"`
 	UserID              uint   `json:"user_id"`
+	CreatedAt           time.Time `json:"created_at"`
 
 	Akun  *StudentUserResponse  `json:"akun,omitempty"`
 	Grade *StudentGradeResponse `json:"grade,omitempty"`
@@ -358,12 +363,14 @@ func GetStudents(c *gin.Context) {
 			PendidikanNonFormal: s.PendidikanNonFormal,
 			Prestasi:            s.Prestasi,
 			UserID:              s.User,
+			CreatedAt:           s.CreatedAt,
 		}
 
 		// Ambil head aktif (done=0) atau head pertama
 		if h := activeHead(headMap[s.ID]); h != nil {
 			item.Done = h.Done
 			item.Status = headStatusLabel(h.Done)
+			item.Induk = h.GetInduk()
 			if h.Programs != nil {
 				item.Program = h.Programs.Name
 			}
@@ -386,6 +393,131 @@ func GetStudents(c *gin.Context) {
 		"page":       page,
 		"limit":      limit,
 		"total_page": totalPage,
+	})
+}
+
+// ─── GET /students/export ─────────────────────────────────────────────────────
+// Export semua siswa tanpa paginasi (untuk export Excel).
+//
+// Query params:
+//
+//	search  = nama / nama_panggilan
+//	unit    = filter ID unit
+//	program = filter ID program
+//	done    = filter status head (kosong = semua)
+func GetStudentsExport(c *gin.Context) {
+	search := c.Query("search")
+	unitID := c.Query("unit")
+	programID := c.Query("program")
+	doneStr := c.Query("done")
+
+	// STEP 1: Ambil student IDs via join head (tanpa limit)
+	idsQuery := config.DB.
+		Table("students").
+		Select("DISTINCT students.id").
+		Joins("JOIN head ON head.students = students.id AND head.deleted_at IS NULL")
+
+	if doneStr != "" {
+		idsQuery = idsQuery.Where("head.done = ?", doneStr)
+	}
+	if unitID != "" {
+		idsQuery = idsQuery.Where("head.unit = ?", unitID)
+	}
+	if programID != "" {
+		idsQuery = idsQuery.Where("head.program = ?", programID)
+	}
+	if search != "" {
+		s := "%" + strings.TrimSpace(search) + "%"
+		idsQuery = idsQuery.Where("students.name LIKE ? OR students.nama_panggilan LIKE ?", s, s)
+	}
+
+	var total int64
+	idsQuery.Count(&total)
+
+	var studentIDs []uint
+	if err := idsQuery.Scan(&studentIDs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data siswa: " + err.Error()})
+		return
+	}
+
+	if len(studentIDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"data":  []StudentListResponse{},
+			"total": total,
+		})
+		return
+	}
+
+	// STEP 2: Load students
+	var students []models.Student
+	if err := config.DB.
+		Where("id IN ?", studentIDs).
+		Find(&students).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal load siswa: " + err.Error()})
+		return
+	}
+
+	// STEP 3: Load heads (Programs + Units)
+	heads := loadHeadsForStudents(studentIDs, doneStr)
+
+	headMap := make(map[uint][]models.Head)
+	for _, h := range heads {
+		headMap[h.Students] = append(headMap[h.Students], h)
+	}
+
+	// STEP 4: Build response
+	result := make([]StudentListResponse, 0, len(students))
+	for _, s := range students {
+		item := StudentListResponse{
+			ID:                  s.ID,
+			Name:                s.Name,
+			NamaPanggilan:       s.NamaPanggilan,
+			Img:                 s.Img,
+			Jenjang:             s.Jenjang,
+			Kelas:               s.Kelas,
+			Place:               s.Place,
+			Birth:               s.Birth,
+			Gender:              s.Gender,
+			Genders:             genderLabel(s.Gender),
+			Alamat:              s.Alamat,
+			SekolahKelas:        s.SekolahKelas,
+			AlamatSekolah:       s.AlamatSekolah,
+			Dream:               s.Dream,
+			HpSiswa:             s.HpSiswa,
+			Agama:               s.Agama,
+			SosmedChild:         s.SosmedChild,
+			SosmedOther:         s.SosmedOther,
+			Dad:                 s.Dad,
+			DadJob:              s.DadJob,
+			Mom:                 s.Mom,
+			MomJob:              s.MomJob,
+			HpParent:            s.HpParent,
+			Study:               s.Study,
+			Rank:                s.Rank,
+			PendidikanNonFormal: s.PendidikanNonFormal,
+			Prestasi:            s.Prestasi,
+			UserID:              s.User,
+			CreatedAt:           s.CreatedAt,
+		}
+
+		if h := activeHead(headMap[s.ID]); h != nil {
+			item.Done = h.Done
+			item.Status = headStatusLabel(h.Done)
+			item.Induk = h.GetInduk()
+			if h.Programs != nil {
+				item.Program = h.Programs.Name
+			}
+			if h.Units != nil {
+				item.Unit = h.Units.Name
+			}
+		}
+
+		result = append(result, item)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  result,
+		"total": total,
 	})
 }
 
@@ -458,6 +590,7 @@ func GetStudentByID(c *gin.Context) {
 	for _, h := range heads {
 		reg := StudentRegResponse{
 			ID:     h.ID,
+			Induk:  h.GetInduk(),
 			Done:   h.Done,
 			Status: headStatusLabel(h.Done),
 		}

@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Student struct {
 	ID                  uint   `gorm:"primaryKey" json:"id"`
 	User                uint   `json:"user"`
@@ -29,6 +31,7 @@ type Student struct {
 	Rank                string `json:"rank"`
 	PendidikanNonFormal string `json:"pendidikan_non_formal"`
 	Prestasi            string `json:"prestasi"`
+	CreatedAt           time.Time `json:"created_at"`
 
 	// Relasi
 	Users *User  `gorm:"foreignKey:User" json:"users,omitempty"`
